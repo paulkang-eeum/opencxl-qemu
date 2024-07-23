@@ -22,14 +22,18 @@
 #include "qemu/osdep.h"
 #include "hw/pci/pci_device.h"
 #include "hw/pci/pcie_host.h"
+#include "hw/cxl/cxl_device.h"
 #include "qemu/module.h"
+#include "trace.h"
 
 /* a helper function to get a PCIDevice for a given mmconfig address */
 static inline PCIDevice *pcie_dev_find_by_mmcfg_addr(PCIBus *s,
                                                      uint32_t mmcfg_addr)
 {
-    return pci_find_device(s, PCIE_MMCFG_BUS(mmcfg_addr),
+    const uint8_t bus_nr = PCIE_MMCFG_BUS(mmcfg_addr);
+    PCIDevice *dev = pci_find_device(s, bus_nr,
                            PCIE_MMCFG_DEVFN(mmcfg_addr));
+    return dev;
 }
 
 static void pcie_mmcfg_data_write(void *opaque, hwaddr mmcfg_addr,
@@ -38,14 +42,21 @@ static void pcie_mmcfg_data_write(void *opaque, hwaddr mmcfg_addr,
     PCIExpressHost *e = opaque;
     PCIBus *s = e->pci.bus;
     PCIDevice *pci_dev = pcie_dev_find_by_mmcfg_addr(s, mmcfg_addr);
-    uint32_t addr;
-    uint32_t limit;
+    const uint32_t addr = PCIE_MMCFG_CONFOFFSET(mmcfg_addr);
+
 
     if (!pci_dev) {
+        const uint8_t bus_nr = PCIE_MMCFG_BUS(mmcfg_addr);
+        PCIDevice *cxl_root_port = cxl_get_remote_root_port(bus_nr);
+        if (cxl_root_port != NULL) {
+            trace_pci_debug_msg("Sending config write via remote CXL root port from ECAM");
+            const uint16_t bdf = PCIE_MMCFG_BDF(mmcfg_addr);
+            cxl_remote_config_space_write(cxl_root_port, bdf, addr, val, len);
+        }
         return;
     }
-    addr = PCIE_MMCFG_CONFOFFSET(mmcfg_addr);
-    limit = pci_config_size(pci_dev);
+    
+    const uint32_t limit = pci_config_size(pci_dev);
     pci_host_config_write_common(pci_dev, addr, limit, val, len);
 }
 
@@ -56,14 +67,22 @@ static uint64_t pcie_mmcfg_data_read(void *opaque,
     PCIExpressHost *e = opaque;
     PCIBus *s = e->pci.bus;
     PCIDevice *pci_dev = pcie_dev_find_by_mmcfg_addr(s, mmcfg_addr);
-    uint32_t addr;
-    uint32_t limit;
-
+    const uint32_t addr = PCIE_MMCFG_CONFOFFSET(mmcfg_addr);
+    
     if (!pci_dev) {
+        const uint8_t bus_nr = PCIE_MMCFG_BUS(mmcfg_addr);
+        PCIDevice *cxl_root_port = cxl_get_remote_root_port(bus_nr);
+        if (cxl_root_port != NULL) {
+            trace_pci_debug_msg("Sending config read via remote CXL root port from ECAM");
+            const uint16_t bdf = PCIE_MMCFG_BDF(mmcfg_addr);
+            uint32_t val;
+            cxl_remote_config_space_read(cxl_root_port, bdf, addr, &val, len);
+            return val;
+        }
         return ~0x0;
     }
-    addr = PCIE_MMCFG_CONFOFFSET(mmcfg_addr);
-    limit = pci_config_size(pci_dev);
+
+    const uint32_t limit = pci_config_size(pci_dev);
     return pci_host_config_read_common(pci_dev, addr, limit, len);
 }
 

@@ -319,7 +319,8 @@ bool send_cxl_io_mem_read(int socket_fd, hwaddr hpa, int size, uint16_t *tag)
     packet.system_header.payload_type = CXL_IO;
     packet.system_header.payload_length = sizeof(packet);
 
-    packet.cxl_io_header.fmt_type = (size == 4 ? MRD_32B : MRD_64B);
+    // TODO: MRD_32B and MRD_64B are not about data size, but memory address size
+    packet.cxl_io_header.fmt_type = MRD_64B;
     uint16_t hdr_length = round_up_to_nearest_dword(size) / 4;
 
     packet.cxl_io_header.length_upper = EXTRACT_UPPER_2(hdr_length);
@@ -352,6 +353,8 @@ bool send_cxl_io_mem_write(int socket_fd, hwaddr hpa, uint64_t val, int size,
     assert(size % 4 == 0); // Ensure size is dword aligned
 
     cxl_io_mem_base_packet_t *base;
+
+    // TODO: MRD_32B and MRD_64B are not about data size, but memory address size
     cxl_io_mem_wr_packet_32b_t packet_32;
     cxl_io_mem_wr_packet_64b_t packet_64;
     bool successful;
@@ -375,7 +378,7 @@ bool send_cxl_io_mem_write(int socket_fd, hwaddr hpa, uint64_t val, int size,
 
     base->system_header.payload_type = CXL_IO;
 
-    base->cxl_io_header.fmt_type = size == 8 ? MWR_64B : MWR_32B;
+    base->cxl_io_header.fmt_type = MWR_64B;
 
     base->cxl_io_header.length_upper = EXTRACT_UPPER_2(hdr_length);
     base->cxl_io_header.length_lower = EXTRACT_LOWER_8(hdr_length);

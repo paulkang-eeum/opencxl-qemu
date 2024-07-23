@@ -1,15 +1,10 @@
 #!/bin/bash
 cd ../build && ./qemu-system-x86_64 \
-    --trace "cxl_root*" \
-    --trace "cxl_read*" \
-    --trace "cxl_write*" \
-    --trace "cxl_usp*" \
-    --trace "cxl_debug*" \
-    --trace "cxl_socket_cxl_io*" \
-    --trace "qdev_device*" \
-    --trace "pc_debug*" \
-    --trace "vl_debug*" \
     --trace "pci_debug*" \
+    --trace "pci_pxb_dev*" \
+    --trace "cxl_root*" \
+    --trace "pci_cfg_write" \
+    --trace "pci_cfg_read" \
 	-m 8G -smp 4 \
 	-machine type=q35,accel=kvm,cxl=on -nographic \
 	-hda fedora_39.qcow2 \

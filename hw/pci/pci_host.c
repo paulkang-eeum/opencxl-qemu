@@ -22,6 +22,7 @@
 #include "hw/pci/pci.h"
 #include "hw/pci/pci_bridge.h"
 #include "hw/pci/pci_host.h"
+#include "hw/cxl/cxl_device.h"
 #include "hw/qdev-properties.h"
 #include "qemu/module.h"
 #include "hw/pci/pci_bus.h"
@@ -121,6 +122,13 @@ void pci_data_write(PCIBus *s, uint32_t addr, uint32_t val, unsigned len)
         trace_pci_cfg_write("empty", extract32(addr, 16, 8),
                             extract32(addr, 11, 5), extract32(addr, 8, 3),
                             config_addr, val);
+        const uint8_t bus_nr = extract32(addr, 16, 8);
+        PCIDevice *cxl_root_port = cxl_get_remote_root_port(bus_nr);
+        if (cxl_root_port != NULL) {
+            trace_pci_debug_msg("Sending config write via remote CXL root port from IO port");
+            const uint16_t bdf = addr >> 8;
+            cxl_remote_config_space_write(cxl_root_port, bdf, config_addr, val, len);
+        }
         return;
     }
 
@@ -137,6 +145,15 @@ uint32_t pci_data_read(PCIBus *s, uint32_t addr, unsigned len)
         trace_pci_cfg_read("empty", extract32(addr, 16, 8),
                            extract32(addr, 11, 5), extract32(addr, 8, 3),
                            config_addr, ~0x0);
+        const uint8_t bus_nr = extract32(addr, 16, 8);
+        PCIDevice *cxl_root_port = cxl_get_remote_root_port(bus_nr);
+        if (cxl_root_port != NULL) {
+            trace_pci_debug_msg("Sending config read via remote CXL root port from IO port");
+            const uint16_t bdf = addr >> 8;
+            uint32_t val;
+            cxl_remote_config_space_read(cxl_root_port, bdf, config_addr, &val, len);
+            return val;
+        }
         return ~0x0;
     }
 

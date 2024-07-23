@@ -73,6 +73,28 @@ static GList *pxb_dev_list;
 
 #define TYPE_PXB_HOST "pxb-host"
 
+PCIDevice *find_pxb_bridge_device_from_bus_nr(uint8_t bus_nr)
+{
+    for (GList *iterator = pxb_dev_list; iterator; iterator = iterator->next) {
+        PXBDev *pxb_dev = (PXBDev *)(iterator->data);
+        PCIBus *bus = PCI_HOST_BRIDGE(pxb_dev->cxl.cxl_host_bridge)->bus;
+        for (uint16_t devfn = bus->devfn_min; devfn <= 0xFF; ++devfn) {
+            PCIDevice *dev = bus->devices[devfn];
+            if (dev == NULL) {
+                continue;
+            }
+            if ((dev->config[PCI_HEADER_TYPE] & PCI_HEADER_TYPE_MASK) == 0) {
+                continue;
+            }
+            if (bus_nr >= dev->config[PCI_SECONDARY_BUS] &&
+                bus_nr <= dev->config[PCI_SUBORDINATE_BUS]) {
+                return dev;
+            }
+        }
+    }
+    return NULL;
+}
+
 CXLComponentState *cxl_get_hb_cstate(PCIHostState *hb)
 {
     CXLHost *host = PXB_CXL_HOST(hb);

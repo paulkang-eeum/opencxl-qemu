@@ -1,14 +1,22 @@
 # cxl_root_port.c
 cxl_root_debug_message(const char *dev) "%s"
 cxl_root_debug_number(const char *dev, uint32_t size) "%s: %u"
+cxl_root_debug_hex(const char *dev, uint32_t size) "%s: 0x%x"
 cxl_root_cxl_io_config_space_write0(uint8_t bus, uint8_t device, uint8_t function, uint32_t offset, int size, uint32_t val) "CFG_WR0 [%02x:%02x.%d] @0x%03X[%dB]: 0x%X"
 cxl_root_cxl_io_config_space_write1(uint8_t bus, uint8_t device, uint8_t function, uint32_t offset, int size, uint32_t val) "CFG_WR1 [%02x:%02x.%d] @0x%03X[%dB]: 0x%X"
 cxl_root_cxl_io_config_space_read0(uint8_t bus, uint8_t device, uint8_t function, uint32_t offset, int size) "CFG_RD0 [%02x:%02x.%d] @0x%03X[%dB]"
 cxl_root_cxl_io_config_space_read1(uint8_t bus, uint8_t device, uint8_t function, uint32_t offset, int size) "CFG_RD1 [%02x:%02x.%d] @0x%03X[%dB]"
-cxl_root_cxl_io_mmio_write(uint64_t address, int size, uint64_t value) "MWR_64B @0x%"PRIx64"[%dB]: 0x%"PRIx64
-cxl_root_cxl_io_mmio_read(uint64_t address, int size) "MRD_64B @0x%"PRIx64"[%dB]"
+cxl_root_cxl_io_mmio_write(uint8_t bus, uint8_t device, uint8_t function, uint64_t address, int size, uint64_t value) "[%02x:%02x.%d] MWR_64B @0x%"PRIx64"[%dB]: 0x%"PRIx64
+cxl_root_cxl_io_mmio_read(uint8_t bus, uint8_t device, uint8_t function, uint64_t address, int size) "[%02x:%02x.%d] MRD_64B @0x%"PRIx64"[%dB]"
+cxl_root_cxl_io_mmio_cpld(uint8_t bus, uint8_t device, uint8_t function, uint64_t value) "[%02x:%02x.%d] CPLD @0x%"PRIx64
 cxl_root_cxl_cxl_mem_write(uint64_t address) "MEM_WR @0x%"PRIx64
 cxl_root_cxl_cxl_mem_read(uint64_t address) "MEM_RD @0x%"PRIx64
+cxl_root_cxl_remote_found(uint8_t bus, uint8_t device, uint8_t function) "[%02x:%02x.%d] Remote device found"
+cxl_root_cxl_remote_type0(uint8_t bus, uint8_t device, uint8_t function) "[%02x:%02x.%d] Remote device is type 0"
+cxl_root_cxl_remote_type1(uint8_t bus, uint8_t device, uint8_t function) "[%02x:%02x.%d] Remote device is type 1"
+cxl_root_cxl_remote_bar_update(uint8_t bus, uint8_t device, uint8_t function, uint8_t bar_index) "[%02x:%02x.%d] Updating BAR %d register"
+cxl_root_cxl_remote_bar_size(uint8_t bus, uint8_t device, uint8_t function, uint8_t bar_index, uint64_t size) "[%02x:%02x.%d] Received BAR %d size: 0x%"PRId64
+cxl_root_cxl_remote_bar_update_addr(uint8_t bus, uint8_t device, uint8_t function, uint8_t bar_index, uint64_t addr) "[%02x:%02x.%d] Updating BAR %d address to 0x%"PRIx64
 
 # cxl_upstream_remote.c
 cxl_usp_debug_message(const char *dev) "%s"

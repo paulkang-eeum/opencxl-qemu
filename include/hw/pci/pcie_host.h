@@ -72,10 +72,14 @@ void pcie_host_mmcfg_update(PCIExpressHost *e,
 #define PCIE_MMCFG_DEVFN_BIT            12
 #define PCIE_MMCFG_DEVFN_MASK           0xff
 #define PCIE_MMCFG_CONFOFFSET_MASK      0xfff
+#define PCIE_MMCFG_BDF_BIT              12
+#define PCIE_MMCFG_BDF_MASK             0xffff
 #define PCIE_MMCFG_BUS(addr)            (((addr) >> PCIE_MMCFG_BUS_BIT) & \
                                          PCIE_MMCFG_BUS_MASK)
 #define PCIE_MMCFG_DEVFN(addr)          (((addr) >> PCIE_MMCFG_DEVFN_BIT) & \
                                          PCIE_MMCFG_DEVFN_MASK)
+#define PCIE_MMCFG_BDF(addr)            (((addr) >> PCIE_MMCFG_BDF_BIT) & \
+                                         PCIE_MMCFG_BDF_MASK)
 #define PCIE_MMCFG_CONFOFFSET(addr)     ((addr) & PCIE_MMCFG_CONFOFFSET_MASK)
 
 #endif /* PCIE_HOST_H */
