@@ -16,12 +16,14 @@ cxl_root_cxl_io_mmio_read(uint8_t bus, uint8_t device, uint8_t function, uint64_
 cxl_root_cxl_io_mmio_cpld(uint8_t bus, uint8_t device, uint8_t function, uint64_t value) "[%02x:%02x.%d] CPLD @0x%"PRIx64
 cxl_root_cxl_cxl_mem_write(uint64_t address) "MEM_WR @0x%"PRIx64
 cxl_root_cxl_cxl_mem_read(uint64_t address) "MEM_RD @0x%"PRIx64
+cxl_root_cxl_remote_root_port(uint8_t bus) "Found a remote root port for bus 0x%02x"
 cxl_root_cxl_remote_found(uint8_t bus, uint8_t device, uint8_t function) "[%02x:%02x.%d] Remote device found"
 cxl_root_cxl_remote_type0(uint8_t bus, uint8_t device, uint8_t function) "[%02x:%02x.%d] Remote device is type 0"
 cxl_root_cxl_remote_type1(uint8_t bus, uint8_t device, uint8_t function) "[%02x:%02x.%d] Remote device is type 1"
 cxl_root_cxl_remote_bar_update(uint8_t bus, uint8_t device, uint8_t function, uint8_t bar_index) "[%02x:%02x.%d] Updating BAR %d register"
 cxl_root_cxl_remote_bar_size(uint8_t bus, uint8_t device, uint8_t function, uint8_t bar_index, uint64_t size) "[%02x:%02x.%d] Received BAR %d size: 0x%"PRId64
 cxl_root_cxl_remote_bar_update_addr(uint8_t bus, uint8_t device, uint8_t function, uint8_t bar_index, uint64_t addr) "[%02x:%02x.%d] Updating BAR %d address to 0x%"PRIx64
+
 
 # cxl_upstream_remote.c
 cxl_usp_debug_message(const char *dev) "%s"
@@ -39,5 +41,6 @@ cxl_socket_cxl_io_config_space_write(uint8_t bus, uint8_t device, uint8_t functi
 cxl_socket_cxl_io_config_space_read(uint8_t bus, uint8_t device, uint8_t function, uint32_t offset, int size) "[%02x:%02x.%d] CFG RD @0x%03X[%dB]"
 cxl_socket_cxl_io_cpl(void) "CPL"
 cxl_socket_cxl_io_cpld(uint64_t data) "CPLD: DATA: 0x%"PRIx64
-cxl_socket_debug_msg(const char *dev) "%s"
-cxl_socket_debug_num(const char *dev, uint32_t size) "%s: %u"
+cxl_socket_debug_msg(const char *msg) "%s"
+cxl_socket_error_msg(const char *msg) "%s"
+cxl_socket_debug_num(const char *msg, uint32_t size) "%s: %u"

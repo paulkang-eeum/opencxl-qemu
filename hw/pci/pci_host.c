@@ -119,15 +119,20 @@ void pci_data_write(PCIBus *s, uint32_t addr, uint32_t val, unsigned len)
     uint32_t config_addr = addr & (PCI_CONFIG_SPACE_SIZE - 1);
 
     if (!pci_dev) {
-        trace_pci_cfg_write("empty", extract32(addr, 16, 8),
-                            extract32(addr, 11, 5), extract32(addr, 8, 3),
-                            config_addr, val);
+
         const uint8_t bus_nr = extract32(addr, 16, 8);
         PCIDevice *cxl_root_port = cxl_get_remote_root_port(bus_nr);
         if (cxl_root_port != NULL) {
+            trace_pci_cfg_write("remote", extract32(addr, 16, 8),
+                    extract32(addr, 11, 5), extract32(addr, 8, 3),
+                    config_addr, val);
             trace_pci_debug_msg("Sending config write via remote CXL root port from IO port");
             const uint16_t bdf = addr >> 8;
             cxl_remote_config_space_write(cxl_root_port, bdf, config_addr, val, len);
+        } else {
+            trace_pci_cfg_write("empty", extract32(addr, 16, 8),
+                                extract32(addr, 11, 5), extract32(addr, 8, 3),
+                                config_addr, val);
         }
         return;
     }

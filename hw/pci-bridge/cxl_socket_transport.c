@@ -128,7 +128,7 @@ bool process_incoming_packets(int socket_fd)
     size_t buffer_size = sizeof(buffer);
 
     if (!wait_for_system_header(socket_fd, buffer, buffer_size)) {
-        trace_cxl_socket_debug_msg("Failed to get system header");
+        trace_cxl_socket_error_msg("Failed to get system header");
         return false;
     }
 
@@ -148,7 +148,7 @@ bool process_incoming_packets(int socket_fd)
     trace_cxl_socket_debug_num("- buffer_size", buffer_size);
     if (!wait_for_payload(socket_fd, &buffer[buffer_offset], buffer_size,
                           remaining_payload_size)) {
-        trace_cxl_socket_debug_msg("Failed to get packet payload");
+        trace_cxl_socket_error_msg("Failed to get packet payload");
         return false;
     }
 
@@ -232,6 +232,7 @@ bool send_cxl_mem_mem_write(int socket_fd, hwaddr hpa, uint8_t *data,
     packet.system_header.payload_type = CXL_MEM;
     packet.system_header.payload_length = sizeof(packet);
     packet.cxl_mem_header.cxl_mem_channel_t = M2S_RWD;
+    packet.m2s_rwd_header.valid = 1;
     packet.m2s_rwd_header.mem_opcode = MEM_WR;
     packet.m2s_rwd_header.addr = hpa >> 6;
     memcpy(packet.data, data, CXL_MEM_ACCESS_UNIT);
@@ -255,6 +256,7 @@ bool send_cxl_mem_mem_read(int socket_fd, hwaddr hpa, uint16_t *tag)
     packet.system_header.payload_type = CXL_MEM;
     packet.system_header.payload_length = sizeof(packet);
     packet.cxl_mem_header.cxl_mem_channel_t = M2S_REQ;
+    packet.m2s_req_header.valid = 1;
     packet.m2s_req_header.mem_opcode = MEM_RD;
     packet.m2s_req_header.addr = hpa >> 6;
 
@@ -509,7 +511,7 @@ bool send_cxl_io_config_space_write(int socket_fd, uint16_t bdf,
     fill_cxl_io_cfg_req_packet(&packet.cfg_req_header, bdf, offset, size, 0,
                                *tag);
 
-    packet.value = val;
+    packet.value = val << (8 * (offset % 4));
 
     trace_cxl_socket_debug_num("CFG WR Packet Size", sizeof(packet));
 

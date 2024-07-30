@@ -139,14 +139,11 @@ PCIDevice *cxl_get_remote_root_port(uint8_t bus_nr) {
         return NULL;
     }
 
-    trace_cxl_root_debug_message("Found a bridge under PXB Device");
-    trace_cxl_root_debug_number("Bus number", bus_nr);
-
     if (!cxl_is_remote_root_port(bridge)) {
         return NULL;
     }
 
-    trace_cxl_root_debug_message("Found a CXL root port device");
+    trace_cxl_root_cxl_remote_root_port(bus_nr);
     return bridge;
 }
 
@@ -474,7 +471,7 @@ void cxl_remote_config_space_read(PCIDevice *d, uint16_t bdf, uint32_t offset,
     const uint8_t function = bdf & 0x7;
 
     uint32_t bit_offset = (offset % 4) * 8;
-    uint32_t bit_mask = (1 << size * 8) - 1;
+    uint32_t bit_mask = (1ULL << size * 8) - 1;
 
     if (type0 && (bdf & 0xFF) != 0) {
         *val = (0xFFFFFFFF >> bit_offset) & bit_mask;
@@ -528,10 +525,6 @@ void cxl_remote_config_space_write(PCIDevice *d, uint16_t bdf, uint32_t offset,
     if (type0 && (bdf & 0xFF) != 0) {
         return;
     }
-
-    uint32_t lsb_diff = offset % 4;
-
-    val <<= lsb_diff * 8;
 
     if (type0) {
         trace_cxl_root_cxl_io_config_space_write0(bus, device, function, offset,
