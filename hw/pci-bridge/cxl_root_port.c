@@ -303,7 +303,7 @@ static bool is_valid_bdf(PCIDevice *d, uint16_t bdf)
 
 static void cxl_remote_device_check_device(CXLRootPort *crp, uint16_t bdf, uint32_t offset, uint32_t value, int size) {
     const uint8_t bus = bdf >> 8;
-    const uint8_t device = bdf & 0x1F >> 3;
+    const uint8_t device = (bdf >> 3) & 0x1F;
     const uint8_t function = bdf & 0x7;
     if (offset == PCI_VENDOR_ID) {
         if ((size == 4 && value != 0xFFFFFFFF) || (size == 2 && value != 0xFFFF)) {
@@ -320,7 +320,7 @@ static void cxl_remote_cxl_io_mmio_write(void *opaque, hwaddr addr, uint64_t val
     CXLRootPort *crp = CXL_ROOT_PORT(region->root_port);
     const uint16_t bdf = region->bdf;
     const uint8_t bus = bdf >> 8;
-    const uint8_t device = bdf & 0x1F >> 3;
+    const uint8_t device = (bdf >> 3) & 0x1F;
     const uint8_t function = bdf & 0x7;
     addr += region->address;
 
@@ -341,7 +341,7 @@ static uint64_t cxl_remote_cxl_io_mmio_read(void *opaque, hwaddr addr, unsigned 
     CXLRootPort *crp = CXL_ROOT_PORT(region->root_port);
     const uint16_t bdf = region->bdf;
     const uint8_t bus = bdf >> 8;
-    const uint8_t device = bdf & 0x1F >> 3;
+    const uint8_t device = (bdf >> 3) & 0x1F;
     const uint8_t function = bdf & 0x7;
     addr += region->address;
 
@@ -411,7 +411,7 @@ static void cxl_remote_device_bar_update(CXLRootPort *crp, uint16_t bdf, uint32_
     }
 
     const uint8_t bus = bdf >> 8;
-    const uint8_t device = bdf & 0x1F >> 3;
+    const uint8_t device = (bdf >> 3) & 0x1F;
     const uint8_t function = bdf & 0x7;
     uint8_t bar_index = (offset - PCI_BASE_ADDRESS_0) / 4;
     trace_cxl_root_cxl_remote_bar_update(bus, device, function, bar_index);
@@ -445,7 +445,7 @@ static void cxl_remote_device_update_header_type(CXLRootPort *crp, uint16_t bdf,
     }
 
     const uint8_t bus = bdf >> 8;
-    const uint8_t device = bdf & 0x1F >> 3;
+    const uint8_t device = (bdf >> 3) & 0x1F;
     const uint8_t function = bdf & 0x7;
     if (offset == PCI_HEADER_TYPE) {
         const bool type0 = (val & PCI_HEADER_TYPE_MASK) == PCI_HEADER_TYPE_NORMAL;
@@ -470,8 +470,16 @@ void cxl_remote_config_space_read(PCIDevice *d, uint16_t bdf, uint32_t offset,
     bool type0 = is_type0_config_request(d, bdf);
     uint16_t tag;
     const uint8_t bus = bdf >> 8;
-    const uint8_t device = bdf & 0x1F >> 3;
+    const uint8_t device = (bdf >> 3) & 0x1F;
     const uint8_t function = bdf & 0x7;
+
+    uint32_t bit_offset = (offset % 4) * 8;
+    uint32_t bit_mask = (1 << size * 8) - 1;
+
+    if (type0 && (bdf & 0xFF) != 0) {
+        *val = (0xFFFFFFFF >> bit_offset) & bit_mask;
+        return;
+    }
 
     if (type0) {
         trace_cxl_root_cxl_io_config_space_read0(bus, device, function, offset,
@@ -487,14 +495,14 @@ void cxl_remote_config_space_read(PCIDevice *d, uint16_t bdf, uint32_t offset,
         assert(0);
     }
 
-    wait_for_cxl_io_cfg_completion(crp->socket_fd, tag, val);
+    uint32_t value = 0;
+    wait_for_cxl_io_cfg_completion(crp->socket_fd, tag, &value);
 
-    uint32_t lsb_diff = offset % 4;
-    uint32_t msb_diff = 4 - lsb_diff;
+    trace_cxl_root_cxl_io_config_cpld(bus, device, function, value);
 
-    *val <<= (msb_diff - size) * 8;
-    *val >>= ((lsb_diff + msb_diff - size)) * 8;
-    
+    value = (value >> bit_offset) & bit_mask;
+    *val = value;
+
     cxl_remote_device_check_device(crp, bdf, offset, *val, size);
     cxl_remote_device_update_header_type(crp, bdf, offset, *val, size);
     cxl_remote_device_bar_update(crp, bdf, offset, *val, size, false);
@@ -514,8 +522,12 @@ void cxl_remote_config_space_write(PCIDevice *d, uint16_t bdf, uint32_t offset,
     bool type0 = is_type0_config_request(d, bdf);
     uint16_t tag;
     const uint8_t bus = bdf >> 8;
-    const uint8_t device = bdf & 0x1F >> 3;
+    const uint8_t device = (bdf >> 3) & 0x1F;
     const uint8_t function = bdf & 0x7;
+
+    if (type0 && (bdf & 0xFF) != 0) {
+        return;
+    }
 
     uint32_t lsb_diff = offset % 4;
 

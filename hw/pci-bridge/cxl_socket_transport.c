@@ -332,6 +332,9 @@ bool send_cxl_io_mem_read(int socket_fd, hwaddr hpa, int size, uint16_t *tag)
     packet.mreq_header.addr_lower = (hpa & 0xFF) >> 2;
     packet.mreq_header.addr_upper = htonll(hpa) & 0xFFFFFFFFFFFFFF;
 
+    packet.mreq_header.first_dw_be = 0b1111;
+    packet.mreq_header.last_dw_be = size == 8? 0b1111: 0;
+
     trace_cxl_socket_debug_num("MRD_64B Packet Size", sizeof(packet));
 
     bool successful = write(socket_fd, &packet, sizeof(packet)) != -1;
@@ -355,8 +358,8 @@ bool send_cxl_io_mem_write(int socket_fd, hwaddr hpa, uint64_t val, int size,
     cxl_io_mem_base_packet_t *base;
 
     // TODO: MRD_32B and MRD_64B are not about data size, but memory address size
-    cxl_io_mem_wr_packet_32b_t packet_32;
-    cxl_io_mem_wr_packet_64b_t packet_64;
+    cxl_io_mem_wr_packet_32b_t packet_32 = {};
+    cxl_io_mem_wr_packet_64b_t packet_64 = {};
     bool successful;
 
     uint16_t hdr_length = round_up_to_nearest_dword(size) / 4;
@@ -366,11 +369,15 @@ bool send_cxl_io_mem_write(int socket_fd, hwaddr hpa, uint64_t val, int size,
         base = (cxl_io_mem_base_packet_t *)&packet_64;
         payload_length = sizeof(packet_64);
         packet_64.data = val;
+        packet_32.headers.mreq_header.first_dw_be = 0b1111;
+        packet_32.headers.mreq_header.last_dw_be = 0b1111;
     } else if (size == 4) {
-        assert(val < UINT32_MAX);
+        assert(val <= UINT32_MAX);
         base = (cxl_io_mem_base_packet_t *)&packet_32;
         payload_length = sizeof(packet_32);
         packet_32.data = (uint32_t)(val & UINT32_MAX);
+        packet_32.headers.mreq_header.first_dw_be = 0b1111;
+        packet_32.headers.mreq_header.last_dw_be = 0;
     } else {
         successful = false;
         assert(size == 4 || size == 8);
@@ -382,7 +389,6 @@ bool send_cxl_io_mem_write(int socket_fd, hwaddr hpa, uint64_t val, int size,
 
     base->cxl_io_header.length_upper = EXTRACT_UPPER_2(hdr_length);
     base->cxl_io_header.length_lower = EXTRACT_LOWER_8(hdr_length);
-
     base->mreq_header.req_id = 0;
     base->mreq_header.tag = *tag;
 
@@ -428,6 +434,15 @@ static bool fill_cxl_io_cfg_req_packet(cxl_io_cfg_req_header_t *header,
     return true;
 }
 
+static void to_hex_string(void *data, size_t size, char *output) {
+    uint8_t *bytes = (uint8_t *)data;
+    for (size_t i = 0; i < size; ++i) {
+        sprintf(output + i * 3, "%02x ", bytes[i]);
+    }
+    // Remove the last space
+    output[size * 3 - 1] = '\0';
+}
+
 bool send_cxl_io_config_space_read(int socket_fd, uint16_t bdf, uint32_t offset,
                                    int size, bool type0, uint16_t *tag)
 {
@@ -436,7 +451,7 @@ bool send_cxl_io_config_space_read(int socket_fd, uint16_t bdf, uint32_t offset,
     *tag = get_next_tag();
 
     const uint8_t bus = bdf >> 8;
-    const uint8_t device = (bdf & 0x1F) >> 3;
+    const uint8_t device = (bdf >> 3) & 0x1F;
     const uint8_t function = bdf & 0x7;
 
     trace_cxl_socket_cxl_io_config_space_read(bus, device, function, offset,
@@ -456,6 +471,10 @@ bool send_cxl_io_config_space_read(int socket_fd, uint16_t bdf, uint32_t offset,
 
     trace_cxl_socket_debug_num("CFG RD Packet Size", sizeof(packet));
 
+    char string_buf[100];
+    to_hex_string((void *)(&packet), sizeof(cxl_io_cfg_rd_packet_t), string_buf);
+    trace_cxl_socket_debug_msg(string_buf);
+
     bool successful = write(socket_fd, &packet, sizeof(packet)) != -1;
 
     trace_cxl_socket_debug_msg("[Sending Packet] END");
@@ -472,8 +491,9 @@ bool send_cxl_io_config_space_write(int socket_fd, uint16_t bdf,
     *tag = get_next_tag();
 
     const uint8_t bus = bdf >> 8;
-    const uint8_t device = (bdf & 0x1F) >> 3;
+    const uint8_t device = (bdf >> 3) & 0x1F;
     const uint8_t function = bdf & 0x7;
+
     trace_cxl_socket_cxl_io_config_space_write(bus, device, function, offset,
                                                size, val);
 
@@ -492,6 +512,10 @@ bool send_cxl_io_config_space_write(int socket_fd, uint16_t bdf,
     packet.value = val;
 
     trace_cxl_socket_debug_num("CFG WR Packet Size", sizeof(packet));
+
+    char string_buf[100];
+    to_hex_string((void *)(&packet), sizeof(cxl_io_cfg_wr_packet_t), string_buf);
+    trace_cxl_socket_debug_msg(string_buf);
 
     bool successful = write(socket_fd, &packet, sizeof(packet)) != -1;
 
@@ -566,6 +590,7 @@ void wait_for_cxl_io_cfg_completion(int socket_fd, uint16_t tag, uint32_t *data)
     while (true) {
         packet_table_entry_t *entry = get_packet_entry(tag);
         if (entry->packet_size > 0) {
+            // TODO: Check payload size based on actual TPL header & length
             if (data == NULL) {
                 assert(entry->packet_size ==
                        sizeof(cxl_io_completion_packet_t));
@@ -576,11 +601,12 @@ void wait_for_cxl_io_cfg_completion(int socket_fd, uint16_t tag, uint32_t *data)
                            sizeof(cxl_io_completion_data_packet_32b_t));
             }
 
-            if (entry->packet_size == sizeof(cxl_io_completion_packet_t)) {
-                if (data != NULL) {
-                    *data = 0xFFFFFFFF;
-                }
-            } else {
+            cxl_io_completion_packet_t *common_packet = (cxl_io_completion_packet_t *)entry->packet;
+
+            trace_cxl_socket_debug_num("CPLD Header Status",common_packet->cpl_header.status);
+            if (common_packet->cpl_header.status != 0 && data != NULL) {
+                *data = 0xFFFFFFFF;
+            } else if (common_packet->cpl_header.status == 0 && data != NULL) {
                 cxl_io_completion_data_packet_32b_t *packet =
                     (cxl_io_completion_data_packet_32b_t *)(entry->packet);
                 *data = (uint32_t)(packet->data);

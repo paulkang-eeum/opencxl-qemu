@@ -1,11 +1,16 @@
 # cxl_root_port.c
-cxl_root_debug_message(const char *dev) "%s"
-cxl_root_debug_number(const char *dev, uint32_t size) "%s: %u"
+cxl_root_debug_message(const char *msg) "%s"
+cxl_root_debug_number(const char *msg, uint32_t size) "%s: %u"
+pci_expander_found_routable_bridge(uint8_t bn) "Bus number 0x%x is routable from a bridge"
+pci_expander_notfound_routable_bridge(uint8_t bn) "Bus number 0x%x is not routable"
+
+
 cxl_root_debug_hex(const char *dev, uint32_t size) "%s: 0x%x"
 cxl_root_cxl_io_config_space_write0(uint8_t bus, uint8_t device, uint8_t function, uint32_t offset, int size, uint32_t val) "CFG_WR0 [%02x:%02x.%d] @0x%03X[%dB]: 0x%X"
 cxl_root_cxl_io_config_space_write1(uint8_t bus, uint8_t device, uint8_t function, uint32_t offset, int size, uint32_t val) "CFG_WR1 [%02x:%02x.%d] @0x%03X[%dB]: 0x%X"
 cxl_root_cxl_io_config_space_read0(uint8_t bus, uint8_t device, uint8_t function, uint32_t offset, int size) "CFG_RD0 [%02x:%02x.%d] @0x%03X[%dB]"
 cxl_root_cxl_io_config_space_read1(uint8_t bus, uint8_t device, uint8_t function, uint32_t offset, int size) "CFG_RD1 [%02x:%02x.%d] @0x%03X[%dB]"
+cxl_root_cxl_io_config_cpld(uint8_t bus, uint8_t device, uint8_t function, uint32_t value) "[%02x:%02x.%d] CPLD @0x%08x"
 cxl_root_cxl_io_mmio_write(uint8_t bus, uint8_t device, uint8_t function, uint64_t address, int size, uint64_t value) "[%02x:%02x.%d] MWR_64B @0x%"PRIx64"[%dB]: 0x%"PRIx64
 cxl_root_cxl_io_mmio_read(uint8_t bus, uint8_t device, uint8_t function, uint64_t address, int size) "[%02x:%02x.%d] MRD_64B @0x%"PRIx64"[%dB]"
 cxl_root_cxl_io_mmio_cpld(uint8_t bus, uint8_t device, uint8_t function, uint64_t value) "[%02x:%02x.%d] CPLD @0x%"PRIx64

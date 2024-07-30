@@ -26,6 +26,7 @@
 #include "sysemu/numa.h"
 #include "hw/boards.h"
 #include "qom/object.h"
+#include "trace.h"
 
 enum BusType { PCI, PCIE, CXL };
 
@@ -75,23 +76,36 @@ static GList *pxb_dev_list;
 
 PCIDevice *find_pxb_bridge_device_from_bus_nr(uint8_t bus_nr)
 {
+    if (bus_nr == 0) {
+        return NULL;
+    }
+
     for (GList *iterator = pxb_dev_list; iterator; iterator = iterator->next) {
         PXBDev *pxb_dev = (PXBDev *)(iterator->data);
+
+        // TODO: Check PXBDev is CXL
         PCIBus *bus = PCI_HOST_BRIDGE(pxb_dev->cxl.cxl_host_bridge)->bus;
         for (uint16_t devfn = bus->devfn_min; devfn <= 0xFF; ++devfn) {
             PCIDevice *dev = bus->devices[devfn];
             if (dev == NULL) {
                 continue;
             }
+
+            // Skip if the device is not PCI Type-1
             if ((dev->config[PCI_HEADER_TYPE] & PCI_HEADER_TYPE_MASK) == 0) {
                 continue;
             }
+
             if (bus_nr >= dev->config[PCI_SECONDARY_BUS] &&
                 bus_nr <= dev->config[PCI_SUBORDINATE_BUS]) {
+                trace_pci_expander_found_routable_bridge(bus_nr);
+
                 return dev;
             }
         }
     }
+
+    trace_pci_expander_notfound_routable_bridge(bus_nr);
     return NULL;
 }
 
@@ -493,6 +507,7 @@ static void pxb_pcie_dev_realize(PCIDevice *dev, Error **errp)
         return;
     }
 
+    trace_cxl_root_debug_message("Realizing PCIe PXB");
     pxb_dev_realize_common(dev, PCIE, errp);
 }
 
@@ -532,6 +547,7 @@ static void pxb_cxl_dev_realize(PCIDevice *dev, Error **errp)
         return;
     }
 
+    trace_cxl_root_debug_message("Realizing CXL PXB");
     pxb_dev_realize_common(dev, CXL, errp);
     pxb_cxl_dev_reset(DEVICE(dev));
 }
