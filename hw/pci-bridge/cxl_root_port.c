@@ -184,7 +184,7 @@ MemTxResult cxl_remote_cxl_mem_read(PCIDevice *d, hwaddr host_addr,
         return MEMTX_OK;
     }
 
-    *data = *(uint8_t *)(cxl_packet->data);
+    memcpy(data, cxl_packet->data, CXL_MEM_ACCESS_UNIT);
     release_packet_entry(tag);
 
     return MEMTX_OK;

@@ -215,10 +215,17 @@ static MemTxResult cxl_read_cfmws(void *opaque, hwaddr addr, uint64_t *data,
         return result;
     }
 
+    bool useCache = true;
     if (cxl_is_remote_root_port(d)) {
-        result = cxl_remote_cxl_mem_read_with_cache(d, addr + fw->base, data,
-                                                    size, attrs);
-        trace_cxl_read_cfmws("CXL.mem via RP", addr, size, *data);
+        if (useCache) {
+            result = cxl_remote_cxl_mem_read_with_cache(d, addr + fw->base, data,
+                                                        size, attrs);
+        } else {
+            uint8_t buffer[64];
+            result = cxl_remote_cxl_mem_read(d, addr + fw->base, buffer, size, attrs);
+            memcpy(data, buffer, 8);
+        }
+        trace_cxl_read_cfmws("CXL.mem read via remote RP", addr, size, *data);
     } else {
         type = object_get_typename(OBJECT(d));
         if (g_strcmp0(type, "cxl-type1") == 0)
@@ -252,10 +259,18 @@ static MemTxResult cxl_write_cfmws(void *opaque, hwaddr addr, uint64_t data,
         return result;
     }
 
+    bool useCache = true;
     if (cxl_is_remote_root_port(d)) {
-        trace_cxl_write_cfmws("CXL.mem via RP", addr, size, data);
-        result = cxl_remote_cxl_mem_write_with_cache(d, addr + fw->base, data,
-                                                     size, attrs);
+        trace_cxl_write_cfmws("CXL.mem write via remote RP", addr, size, data);
+        if (useCache) {
+            result = cxl_remote_cxl_mem_write_with_cache(d, addr + fw->base, data,
+                                                        size, attrs);
+        } else {
+            uint8_t buffer[64];
+            memcpy(buffer, &data, 8);
+            result = cxl_remote_cxl_mem_write(d, addr + fw->base, buffer, size, attrs);
+            
+        }
     } else {
         type = object_get_typename(OBJECT(d));
         if (g_strcmp0(type, "cxl-type1") == 0)
