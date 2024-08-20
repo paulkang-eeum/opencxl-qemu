@@ -9,6 +9,8 @@ fi
 echo "SOCKET_HOST IS $SOCKET_HOST"
 
 cd ../build && ./qemu-system-x86_64 \
+    --trace "cxl_socket_error_msg" \
+    --trace "cxl_root_error_msg" \
 	-m 8G -smp 4 \
 	-machine type=q35,accel=kvm,cxl=on -nographic \
 	-hda fedora_39.qcow2 \

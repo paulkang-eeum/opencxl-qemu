@@ -8506,7 +8506,7 @@ static void nvme_class_init(ObjectClass *oc, void *data)
     pc->config_write = nvme_pci_write_config;
     pc->exit = nvme_exit;
     pc->class_id = PCI_CLASS_STORAGE_EXPRESS;
-    pc->revision = 2;
+    pc->revision = 2; 
 
     set_bit(DEVICE_CATEGORY_STORAGE, dc->categories);
     dc->desc = "Non-Volatile Memory Express";

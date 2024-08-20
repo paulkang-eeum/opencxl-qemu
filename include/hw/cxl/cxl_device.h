@@ -410,6 +410,4 @@ void cxl_remote_config_space_read(PCIDevice *d, uint16_t bdf, uint32_t offset,
                                   uint32_t *val, int size);
 void cxl_remote_config_space_write(PCIDevice *d, uint16_t bdf, uint32_t offset,
                                    uint32_t val, int size);
-void cxl_remote_mem_read(PCIDevice *d, uint64_t addr, uint64_t *val, int size);
-void cxl_remote_mem_write(PCIDevice *d, uint64_t addr, uint64_t val, int size);
 #endif

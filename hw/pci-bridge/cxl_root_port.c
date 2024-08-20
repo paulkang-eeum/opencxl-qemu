@@ -273,16 +273,6 @@ MemTxResult cxl_remote_cxl_mem_write(PCIDevice *d, hwaddr host_addr,
     return MEMTX_OK;
 }
 
-void cxl_remote_mem_read(PCIDevice *d, uint64_t addr, uint64_t *val, int size)
-{
-    
-}
-
-void cxl_remote_mem_write(PCIDevice *d, uint64_t addr, uint64_t val, int size)
-{
-
-}
-
 static bool is_type0_config_request(PCIDevice *root_port, uint16_t bdf)
 {
     uint8_t secondary_bus = root_port->config[PCI_SECONDARY_BUS];
@@ -459,7 +449,7 @@ void cxl_remote_config_space_read(PCIDevice *d, uint16_t bdf, uint32_t offset,
                                   uint32_t *val, int size)
 {
     if (!is_valid_bdf(d, bdf)) {
-        trace_cxl_root_debug_message("Invalid BDF received");
+        trace_cxl_root_error_msg("Invalid BDF received");
         assert(0);
     }
 
@@ -488,12 +478,15 @@ void cxl_remote_config_space_read(PCIDevice *d, uint16_t bdf, uint32_t offset,
 
     if (!send_cxl_io_config_space_read(crp->socket_fd, bdf, offset, size, type0,
                                        &tag)) {
-        trace_cxl_root_debug_message("Failed to send CXL.io CFG RD request");
+        trace_cxl_root_error_msg("Failed to send CXL.io CFG RD request");
         assert(0);
     }
 
     uint32_t value = 0;
-    wait_for_cxl_io_cfg_completion(crp->socket_fd, tag, &value);
+    if (!wait_for_cxl_io_cfg_completion(crp->socket_fd, tag, &value)) {
+        trace_cxl_root_error_msg("Failed to receive CXL.io CPL or CPLD packet");
+        assert(0);
+    }
 
     trace_cxl_root_cxl_io_config_cpld(bus, device, function, value);
 
@@ -511,7 +504,7 @@ void cxl_remote_config_space_write(PCIDevice *d, uint16_t bdf, uint32_t offset,
                                    uint32_t val, int size)
 {
     if (!is_valid_bdf(d, bdf)) {
-        trace_cxl_root_debug_message("Invalid BDF received");
+        trace_cxl_root_error_msg("Invalid BDF received");
         assert(0);
     }
 
@@ -536,11 +529,14 @@ void cxl_remote_config_space_write(PCIDevice *d, uint16_t bdf, uint32_t offset,
 
     if (!send_cxl_io_config_space_write(crp->socket_fd, bdf, offset, val, size,
                                         type0, &tag)) {
-        trace_cxl_root_debug_message("Failed to send CXL.io CFG WR request");
+        trace_cxl_root_error_msg("Failed to send CXL.io CFG WR request");
         assert(0);
     }
 
-    wait_for_cxl_io_cfg_completion(crp->socket_fd, tag, NULL);
+    if (!wait_for_cxl_io_cfg_completion(crp->socket_fd, tag, NULL)) {
+        trace_cxl_root_error_msg("Failed to receive CXL.io CPL packet");
+        assert(0);
+    }
 
     cxl_remote_device_bar_update(crp, bdf, offset, val, size, true);
 

@@ -23,7 +23,7 @@
 
 #define MAX_TAG 512
 #define MAX_PAYLOAD_SIZE 512
-#define MAX_DURATION 5
+#define MAX_DURATION 30
 
 // For cxl_io_header_t endianness compatibility
 #define EXTRACT_UPPER_2(length) (extract16(length, 8, 2))
@@ -80,20 +80,29 @@ bool wait_for_payload(int socket_fd, uint8_t *buffer, size_t buffer_size,
 
         // Check if the time elapsed exceeds the maximum duration
         if (difftime(current_time, start_time) > MAX_DURATION) {
-            trace_cxl_socket_debug_msg("Timeout exceeded!");
+            trace_cxl_socket_error_msg("Timeout exceeded!");
             return false;
         }
 
         size_t remaining_size = payload_size - total_bytes_read;
         ssize_t bytes_read =
             read(socket_fd, &buffer[total_bytes_read], remaining_size);
-        if (bytes_read <= 0) {
-            trace_cxl_socket_debug_msg("Failed to read bytes from socket");
+        if (bytes_read == 0) {
+            trace_cxl_socket_error_msg("Socket connection is disconnected");
+            return false;
+        } else if (bytes_read == -1) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                trace_cxl_socket_error_msg("Resource temporarily not available. Retrying");
+                continue;
+            }
+            char msg[100];
+            sprintf(msg, "Socket error encountered. Error: %s", strerror(errno));
+            trace_cxl_socket_error_msg(msg);
             return false;
         }
         trace_cxl_socket_debug_num("Bytes read", bytes_read);
         if (bytes_read > 0 && bytes_read + total_bytes_read > buffer_size) {
-            trace_cxl_socket_debug_msg("Buffer overflowed");
+            trace_cxl_socket_error_msg("Buffer overflowed");
             return false;
         }
         if (bytes_read > 0) {
@@ -119,7 +128,9 @@ uint16_t get_next_tag(void)
     // const uint16_t next_tag = current_tag;
     // current_tag += 1;
     // return next_tag;
-    return 0;
+    uint16_t tag = 0;
+    packet_entries[tag].packet_size = 0;
+    return tag;
 }
 
 bool process_incoming_packets(int socket_fd)
@@ -162,6 +173,9 @@ bool process_incoming_packets(int socket_fd)
 packet_table_entry_t *get_packet_entry(uint16_t tag)
 {
     if (tag >= MAX_TAG) {
+        char msg[100];
+        sprintf(msg, "Tag %d exeeded the maximum tag %d", tag, MAX_TAG);
+        trace_cxl_socket_error_msg(msg);
         return NULL;
     }
     trace_cxl_socket_debug_num("Getting packet entry for tag", tag);
@@ -171,7 +185,9 @@ packet_table_entry_t *get_packet_entry(uint16_t tag)
 bool release_packet_entry(uint16_t tag)
 {
     if (tag >= MAX_TAG) {
-        trace_cxl_socket_debug_num("Failed to release tag", tag);
+        char msg[100];
+        sprintf(msg, "Failed to release tag %d", tag);
+        trace_cxl_socket_error_msg(msg);
         return false;
     }
     trace_cxl_socket_debug_num("Releasing tag", tag);
@@ -585,7 +601,7 @@ size_t wait_for_cxl_io_completion_data(int socket_fd, uint16_t tag,
     return packet_size;
 }
 
-void wait_for_cxl_io_cfg_completion(int socket_fd, uint16_t tag, uint32_t *data)
+bool wait_for_cxl_io_cfg_completion(int socket_fd, uint16_t tag, uint32_t *data)
 {
     trace_cxl_socket_debug_msg("[Receiving Packet] START");
 
@@ -594,13 +610,21 @@ void wait_for_cxl_io_cfg_completion(int socket_fd, uint16_t tag, uint32_t *data)
         if (entry->packet_size > 0) {
             // TODO: Check payload size based on actual TPL header & length
             if (data == NULL) {
-                assert(entry->packet_size ==
-                       sizeof(cxl_io_completion_packet_t));
+                if (entry->packet_size == sizeof(cxl_io_completion_packet_t)) {
+                    trace_cxl_socket_debug_msg("Recevied CXL.io CPL packet");
+                } else {
+                    trace_cxl_socket_error_msg("The received packet is not CXL.io CPL packet");
+                    return false;
+                }
             } else {
-                assert(entry->packet_size ==
-                           sizeof(cxl_io_completion_packet_t) ||
-                       entry->packet_size ==
-                           sizeof(cxl_io_completion_data_packet_32b_t));
+                if (entry->packet_size == sizeof(cxl_io_completion_packet_t)) {
+                    trace_cxl_socket_debug_msg("Recevied CXL.io CPL packet");
+                } else if (entry->packet_size == sizeof(cxl_io_completion_data_packet_32b_t)) {
+                    trace_cxl_socket_debug_msg("Recevied CXL.io CPLD packet");
+                } else {
+                    trace_cxl_socket_error_msg("The received packet is not CXL.io CPL or CPLD packet");
+                    return false;
+                }
             }
 
             cxl_io_completion_packet_t *common_packet = (cxl_io_completion_packet_t *)entry->packet;
@@ -617,11 +641,13 @@ void wait_for_cxl_io_cfg_completion(int socket_fd, uint16_t tag, uint32_t *data)
             break;
         }
         if (!process_incoming_packets(socket_fd)) {
-            break;
+            trace_cxl_socket_error_msg("Failed to receive CPL or CPLD packet");
+            return false;
         }
     }
 
     trace_cxl_socket_debug_msg("[Receiving Packet] END");
+    return true;
 }
 
 int32_t create_socket_client(const char *host, uint32_t port)

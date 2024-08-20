@@ -44,7 +44,7 @@ cxl_io_completion_packet_t *wait_for_cxl_io_completion(int socket_fd,
                                                        uint16_t tag);
 size_t wait_for_cxl_io_completion_data(int socket_fd, uint16_t tag,
                                        uint64_t *data);
-void wait_for_cxl_io_cfg_completion(int socket_fd, uint16_t tag,
+bool wait_for_cxl_io_cfg_completion(int socket_fd, uint16_t tag,
                                     uint32_t *data);
 
 // Socket
