@@ -52,10 +52,6 @@ packet_table_entry_t packet_entries[512] = { 0 };
  */
 static inline cxl_io_fmt_type_t get_io_fmt(uint8_t *raw_pckt_pld_buf);
 
-static bool wait_for_payload(int socket_fd, uint8_t *buffer, size_t buffer_size,
-                             size_t payload_size);
-static bool wait_for_system_header(int socket_fd, uint8_t *buffer,
-                                   size_t buffer_size);
 static uint16_t get_next_tag(void);
 static bool process_incoming_packets(int socket_fd);
 static packet_table_entry_t *get_packet_entry(uint16_t tag);
@@ -114,10 +110,13 @@ bool wait_for_payload(int socket_fd, uint8_t *buffer, size_t buffer_size,
     return true;
 }
 
-bool wait_for_system_header(int socket_fd, uint8_t *buffer, size_t buffer_size)
+bool wait_for_system_header(int socket_fd, system_header_packet_t *system_header)
 {
-    size_t payload_size = sizeof(system_header_packet_t);
-    return wait_for_payload(socket_fd, buffer, buffer_size, payload_size);
+    return wait_for_payload(socket_fd, (uint8_t *)system_header, sizeof(*system_header), sizeof(*system_header));
+}
+
+bool wait_for_tlp_header_dw0(int socket_fd, cxl_io_header_t *tlp_dw0) {
+    return wait_for_payload(socket_fd, (uint8_t *)tlp_dw0, sizeof(*tlp_dw0), sizeof(*tlp_dw0));
 }
 
 // uint16_t current_tag = 0;

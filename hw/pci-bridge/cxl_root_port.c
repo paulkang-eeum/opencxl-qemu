@@ -29,14 +29,18 @@
 #include "hw/cxl/cxl.h"
 #include "hw/cxl/cxl_emulator_packet.h"
 #include "hw/cxl/cxl_socket_transport.h"
+#include "hw/cxl/cxl_remote.h"
+#include "hw/cxl/"
 #include "hw/pci-bridge/pci_expander_bridge.h"
 #include "standard-headers/linux/pci_regs.h"
 #include "trace.h"
 
+#include <bits/pthreadtypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+#include <pthread.h>
 
 #define CXL_ROOT_PORT_DID 0x7075
 
@@ -85,11 +89,14 @@ typedef struct CXLRootPort {
     CXLComponentState cxl_cstate;
     PCIResReserve res_reserve;
 
+    // TODO: Move remote related fields to CXLRemoteRootPort
     char *socket_host;
     uint32_t socket_port;
     uint32_t switch_port;
     int socket_fd;
     remote_device_info_t remote_devices[MAX_PCI_DEVICES];
+
+    CXLRemoteRootPort remote;
 } CXLRootPort;
 
 

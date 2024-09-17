@@ -12,6 +12,8 @@
 #include <stdint.h>
 
 #include "cxl_emulator_packet.h"
+#include "exec/hwaddr.h"
+#include "qemu/osdep.h"
 
 bool release_packet_entry(uint16_t tag);
 
@@ -31,6 +33,9 @@ cxl_mem_s2m_drs_packet_t *wait_for_cxl_mem_mem_data(int socket_fd,
                                                     uint16_t tag);
 
 // CXL.io
+bool wait_for_tlp_header_dw0(int socket_fd, cxl_io_header_t *tlp_dw0);
+bool wait_for_tlp_cpl_without_dw0(int socket_fd, cxl_io_completion_header_t *cpl_header);
+bool wait_for_tlp_header_without_dw0(int socket_fd, opencxl_tlp_header_t *cpl_header);
 
 bool send_cxl_io_mem_read(int socket_fd, hwaddr hpa, int size, uint16_t *tag);
 bool send_cxl_io_mem_write(int socket_fd, hwaddr hpa, uint64_t val, int size,
@@ -50,5 +55,10 @@ bool wait_for_cxl_io_cfg_completion(int socket_fd, uint16_t tag,
 // Socket
 
 int32_t create_socket_client(const char *host, uint32_t port);
+bool wait_for_system_header(int socket_fd,
+                            system_header_packet_t *system_header);
+bool wait_for_payload(int socket_fd, uint8_t *buffer, size_t buffer_size,
+                      size_t payload_size);
+bool send_payload(int socket_fd, uint8_t *buffer, size_t buffer_size);
 
-#endif // CXL_SOCKET_TRANSPORT_H
+#endif  // CXL_SOCKET_TRANSPORT_H
