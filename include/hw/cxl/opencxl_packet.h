@@ -5,13 +5,11 @@
  * See the COPYING file in the top-level directory.
  */
 
-#ifndef CXL_EMULATOR_PACKET_H
-#define CXL_EMULATOR_PACKET_H
+#ifndef OPENCXL_PACKET_H
+#define OPENCXL_PACKET_H
 
 #include <stdbool.h>
 #include <stdint.h>
-
-#include "exec/hwaddr.h"
 
 /*
  * System Header
@@ -29,7 +27,9 @@ typedef struct system_header_packet
 {
     uint16_t payload_type : 4;
     uint16_t payload_length : 12;
-} system_header_packet_t;
+} __attribute__((packed)) system_header_packet_t;
+
+void print_system_header(system_header_packet_t *system_header, bool is_tx);
 
 /*
  * Sideband
@@ -61,6 +61,8 @@ typedef struct sideband_connection_request_packet
     uint8_t port;
 } __attribute__((packed)) sideband_connection_request_packet_t;
 
+void print_sideband_packet(base_sideband_packet_t *sb_header, bool is_tx);
+
 /*
  * CXL.io
  */
@@ -83,9 +85,9 @@ typedef enum
     D_MRW_32B = 0b01011011,
     D_MRW_64B = 0b01111011,
     CPL = 0b00001010,
-    CPL_D = 0b01001010,
+    CPLD = 0b01001010,
     CPL_LK = 0b00001011,
-    CPL_D_LK = 0b01001011,
+    CPLD_LK = 0b01001011,
     FETCH_ADD_32B = 0b01001100,
     FETCH_ADD_64B = 0b01101100,
     SWAP_32B = 0b01001101,
@@ -96,12 +98,22 @@ typedef enum
 
 typedef enum
 {
-    DW3 = 0,
-    DW4,
-    DW3_DATA,
-    DW4_DATA,
-    PREFIX
+    TLP_FORMAT_DW3 = 0,
+    TLP_FORMAT_DW4,
+    TLP_FORMAT_DW3_DATA,
+    TLP_FORMAT_DW4_DATA,
+    TLP_FORMAT_PREFIX,
+    TLP_FORMAT_UNDEFINED
 } cxl_io_fmt_t;
+
+typedef enum
+{
+    TLP_CPL_STATUS_SC = 0b000,
+    TLP_CPL_STATUS_UR = 0b001,
+    TLP_CPL_STATUS_RRS = 0b010,
+    TLP_CPL_STATUS_CA = 0b100,
+    TLP_CPL_STATUS_UNDEFIEND
+} tlp_cpl_status_t;
 
 typedef struct
 {
@@ -129,26 +141,18 @@ typedef struct
     uint64_t addr_upper : 56; /* Adjusted for 62 bits, loops around the dword */
     uint8_t rsvd : 2;
     uint64_t addr_lower : 6;
-} __attribute__((packed)) cxl_io_mreq_header_t;
+} __attribute__((packed)) cxl_io_mreq64_header_t;
 
 typedef struct
 {
-    system_header_packet_t system_header;
-    cxl_io_header_t cxl_io_header;
-    cxl_io_mreq_header_t mreq_header;
-} __attribute__((packed)) cxl_io_mem_base_packet_t;
-
-typedef struct
-{
-    cxl_io_mem_base_packet_t headers;
-    uint32_t data;
-} __attribute__((packed)) cxl_io_mem_wr_packet_32b_t;
-
-typedef struct
-{
-    cxl_io_mem_base_packet_t headers;
-    uint64_t data;
-} __attribute__((packed)) cxl_io_mem_wr_packet_64b_t;
+    uint16_t req_id;
+    uint8_t tag;
+    uint8_t first_dw_be : 4;
+    uint8_t last_dw_be : 4;
+    uint32_t addr_upper : 24; /* Adjusted for 62 bits, loops around the dword */
+    uint8_t rsvd : 2;
+    uint8_t addr_lower : 6;
+} __attribute__((packed)) cxl_io_mreq32_header_t;
 
 typedef struct
 {
@@ -162,22 +166,6 @@ typedef struct
     uint8_t r : 2;
     uint8_t reg_num : 6;
 } __attribute__((packed)) cxl_io_cfg_req_header_t;
-
-typedef struct
-{
-    system_header_packet_t system_header;
-    cxl_io_header_t cxl_io_header;
-    cxl_io_cfg_req_header_t cfg_req_header;
-} __attribute__((packed)) cxl_io_cfg_rd_packet_t;
-
-typedef struct
-{
-    system_header_packet_t system_header;
-    cxl_io_header_t cxl_io_header;
-    cxl_io_cfg_req_header_t cfg_req_header;
-    uint32_t value;
-} __attribute__((packed)) cxl_io_cfg_wr_packet_t;
-
 typedef struct
 {
     uint16_t cpl_id;
@@ -194,38 +182,30 @@ typedef struct
 typedef struct
 {
     system_header_packet_t system_header;
-    cxl_io_header_t cxl_io_header;
-    cxl_io_completion_header_t cpl_header;
-} __attribute__((packed)) cxl_io_completion_packet_t;
-
-typedef struct
-{
-    system_header_packet_t system_header;
-    cxl_io_header_t cxl_io_header;
-    cxl_io_completion_header_t cpl_header;
-    uint32_t data;
-} __attribute__((packed)) cxl_io_completion_data_packet_32b_t;
-
-typedef struct
-{
-    system_header_packet_t system_header;
-    cxl_io_header_t cxl_io_header;
-    cxl_io_completion_header_t cpl_header;
-    uint64_t data;
-} __attribute__((packed)) cxl_io_completion_data_packet_64b_t;
-
-typedef struct
-{
-    cxl_io_header_t dw0;
-    cxl_io_completion_header_t dw2_3;
-} __attribute__((packed)) cxl_io_cpl_header_t;
-
-typedef struct
-{
-    system_header_packet_t system_header;
     cxl_io_header_t dw0;
     cxl_io_completion_header_t dw2_3;
 } __attribute__((packed)) opencxl_tlp_cpl_header_t;
+
+typedef struct
+{
+    system_header_packet_t system_header;
+    cxl_io_header_t cxl_io_header;
+    cxl_io_mreq64_header_t mreq_header;
+} __attribute__((packed)) opencxl_tlp_mem64_header_t;
+
+typedef struct
+{
+    system_header_packet_t system_header;
+    cxl_io_header_t cxl_io_header;
+    cxl_io_mreq32_header_t mreq_header;
+} __attribute__((packed)) opencxl_tlp_mem32_header_t;
+
+typedef struct
+{
+    system_header_packet_t system_header;
+    cxl_io_header_t cxl_io_header;
+    cxl_io_cfg_req_header_t cfg_req_header;
+} __attribute__((packed)) opencxl_tlp_cfg_header_t;
 
 typedef struct
 {
@@ -242,25 +222,53 @@ typedef struct
     uint32_t dw3;
 } __attribute__((packed)) opencxl_tlp_header_t;
 
-uint16_t parse_opencxl_tlp_header_tag(const opencxl_tlp_header_t *tlp_header);
+cxl_io_fmt_t parse_opencxl_tlp_fmt(const opencxl_tlp_header_t *tlp_dw0);
 uint8_t parse_openxcl_tlp_header_size(const opencxl_tlp_header_t *tlp_header);
+uint16_t parse_opencxl_tlp_header_tag(const opencxl_tlp_header_t *tlp_header);
 uint16_t parse_opencxl_tlp_data_length(const opencxl_tlp_header_t *tlp_header);
-uint8_t parse_opencxl_tlp_cpl_status(const opencxl_tlp_header_t *tlp_header);
+uint16_t parse_opencxl_tlp_data_payload_length(
+    const opencxl_tlp_header_t *tlp_header);
 
+tlp_cpl_status_t parse_opencxl_tlp_cpl_status(
+    const opencxl_tlp_header_t *tlp_header);
+void *parse_opencxl_tlp_data_pointer(const opencxl_tlp_header_t *tlp_header);
+bool parse_opencxl_tlp_response_expected(
+    const opencxl_tlp_header_t *tlp_header);
+uint32_t parse_opencxl_mem32_address(const opencxl_tlp_header_t *tlp_header);
+uint64_t parse_opencxl_mem64_address(const opencxl_tlp_header_t *tlp_header);
+uint64_t parse_opencxl_mem_address(const opencxl_tlp_header_t *tlp_header);
+uint16_t parse_opencxl_req_id(const opencxl_tlp_header_t *tlp_header);
 
-cxl_io_fmt_t parse_cxl_io_fmt(const cxl_io_header_t *tlp_dw0);
-uint16_t parse_cxl_io_cpl_tag(const cxl_io_cpl_header_t *cpl_header);
-uint16_t parse_cxl_io_data_length(const cxl_io_header_t *tlp_dw0);
-bool cxl_io_expect_response(const cxl_io_header_t *tlp_dw0);
-void fill_tlp_mwr_header(cxl_io_mem_base_packet_t *io_mem_header,
-                         uint16_t req_id, hwaddr addr, uint32_t size,
-                         uint16_t tag);
-void fill_tlp_mrd_header(cxl_io_mem_base_packet_t *io_mem_header,
-                         uint16_t req_id, hwaddr addr, uint32_t size,
-                         uint16_t tag);
-void read_mrd_data(cxl_io_mem_base_packet_t *io_mem_header, void *payload,
-                   void *dest);
+void fill_tlp_mwr_header(opencxl_tlp_header_t *tlp_header, uint16_t req_id,
+                         uint64_t addr, uint16_t length_dw, uint8_t first_dw_be,
+                         uint8_t last_dw_be, uint16_t tag);
 
+void fill_tlp_mrd_header(opencxl_tlp_header_t *tlp_header, uint16_t req_id,
+                         uint64_t addr, uint32_t length_dw, uint8_t first_dw_be,
+                         uint8_t last_dw_be, uint16_t tag);
+void fill_cfg_rd_header(opencxl_tlp_header_t *tlp_header, uint16_t req_id,
+                        uint16_t dest_id, uint16_t reg_num, uint8_t be,
+                        uint16_t tag, bool type0);
+void fill_cfg_wr_header(opencxl_tlp_header_t *tlp_header, uint16_t req_id,
+                        uint16_t dest_id, uint16_t reg_num, uint8_t be,
+                        uint16_t tag, bool type0);
+void fill_cpl_header(opencxl_tlp_header_t *tlp_header, uint16_t req_id,
+                     uint16_t comp_id, uint16_t length_dw, tlp_cpl_status_t status,
+                     uint16_t byte_counts, uint8_t lower_addr, uint16_t tag);
+
+// Helper functions for processing data paylooad
+uint32_t get_cfg_rd_data_with_be(uint32_t data, uint8_t be);
+uint32_t get_cfg_wr_data_with_be(uint32_t data, uint8_t be);
+uint64_t get_mmio_rd_data_with_be(uint64_t data, uint8_t first_be,
+                                  uint8_t last_be);
+uint64_t get_mmio_wr_data_with_be(uint64_t data, uint8_t first_be,
+                                  uint8_t last_be);
+void get_tlp_reg_num_and_be(uint32_t offset, uint8_t size, uint16_t *reg_num,
+                            uint8_t *be);
+void get_tlp_length_and_be(uint64_t addr, uint8_t size, uint16_t *length_dw,
+                           uint8_t *first_be, uint8_t *last_be);
+
+void print_io_packet(opencxl_tlp_header_t *tlp_header, bool is_tx);
 /*
  * CXL.mem
  */
@@ -583,4 +591,4 @@ typedef struct
     cxl_cache_req_d2h_header_t req_d2h;
 } __attribute__((packed)) cxl_cache_req_d2h_packet_t;
 
-#endif /* CXL_EMULATOR_PACKET_H */
+#endif /* OPENCXL_PACKET_H */

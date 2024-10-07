@@ -5,7 +5,8 @@ cd ../build && ./qemu-system-x86_64 \
     --trace "cxl_root*" \
     --trace "pci_cfg_write" \
     --trace "pci_cfg_read" \
-    --trace "cxl_socket_error_msg" \
+    --trace "cxl_socket_*" \
+    --trace "cxl_opencxl_packet_*" \
 	-m 8G -smp 4 \
 	-machine type=q35,accel=kvm,cxl=on -nographic \
 	-hda fedora_39.qcow2 \

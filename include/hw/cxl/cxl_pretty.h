@@ -13,10 +13,6 @@
 #ifndef CXL_PRETTY_H
 
 #include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-
-#include "hw/cxl/cxl_emulator_packet.h"
 
 /**
  * @brief Writes a pretty string representing the packet to the buffer

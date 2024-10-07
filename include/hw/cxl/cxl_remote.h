@@ -8,88 +8,114 @@
 #ifndef CXL_REMOTE_H
 #define CXL_REMOTE_H
 
-#include <stdint.h>
-#include <stdbool.h>
 #include <pthread.h>
-#include "exec/hwaddr.h"
+#include <stdbool.h>
+#include <stdint.h>
 
-#define CXL_MAX_IO_TAG 1024     // 2^10
-#define CXL_MAX_MEM_TAG 65536   // 2^16
+#include "exec/hwaddr.h"
+#include "hw/cxl/opencxl_packet.h"
+#include "qemu/typedefs.h"
+
+#define CXL_MAX_IO_TAG 256     // 2^8
+#define CXL_MAX_MEM_TAG 65536  // 2^16
 #define MAX_PACKET_SIZE 512
 
 // Packet Request Entry for requests
-typedef struct {
+typedef struct
+{
     uint8_t packet[MAX_PACKET_SIZE];
     size_t packet_size;
     uint16_t tag;
 } PacketRequestEntry;
 
 // Packet Response Entry for responses
-typedef struct {
+typedef struct
+{
     uint8_t packet[MAX_PACKET_SIZE];
     size_t packet_size;
-    bool requested;                      // Whether the request for this tag has been submitted
-    bool received;                       // Whether the response has been received
-    PacketRequestEntry* request_entry;   // Pointer to the associated request entry
+    bool requested;
+    bool received;
+
+    PacketRequestEntry *request_entry;  // Associated request entry
 } PacketResponseEntry;
 
 // Circular Queue for Entries
-typedef struct {
-    PacketRequestEntry** entries;  // Queue for entries (either available or submitted)
+typedef struct
+{
+    PacketRequestEntry **entries;
     uint32_t max_size;
     uint32_t head;
     uint32_t tail;
 } EntryQueue;
 
 // Unified Request Queue (combining available and submitted entries)
-typedef struct {
-    EntryQueue available_queue;   // Queue for available entries
-    EntryQueue submitted_queue;   // Queue for submitted entries
-    PacketRequestEntry* entries;
+typedef struct
+{
+    EntryQueue available_queue;  // Queue for available entries
+    EntryQueue submitted_queue;  // Queue for submitted entries
+    PacketRequestEntry *entries;
     pthread_mutex_t lock;
     pthread_cond_t cond;
 } RequestQueue;
 
 // Response Table to track responses and submission status
-typedef struct {
-    PacketResponseEntry* entries;         // Array to store response entries
+typedef struct
+{
+    PacketResponseEntry *entries;  // Array to store response entries
     uint32_t size;
-    pthread_mutex_t lock;                 // Lock for thread-safe access
-    pthread_cond_t cond;                  // Condition variable to wait for response
+    pthread_mutex_t lock;  // Lock for thread-safe access
+    pthread_cond_t cond;   // Condition variable to wait for response
     RequestQueue *request_queue;
 } ResponseTable;
 
 // CXL Remote Root Port Structure
-typedef struct {
-    RequestQueue io_request_queue;  // Unified request queue for IO
-    ResponseTable io_response_table; // Response tracking table for IO
+typedef struct
+{
+    RequestQueue io_request_queue;      // Queue for CXL.io request
+                                        // and CXL.io DMA response
+    RequestQueue io_dma_request_queue;  // Queue for CXL.io DMA request
+    ResponseTable io_response_table;    // Response tracking table for IO
 
-    RequestQueue mem_request_queue; // Unified request queue for memory
-    ResponseTable mem_response_table; // Response tracking table for memory
+    RequestQueue mem_request_queue;    // Queue for CXL.mem request
+    ResponseTable mem_response_table;  // Response tracking table for memory
 
     int32_t socket_fd;
     pthread_mutex_t socket_tx_lock;
+
+    pthread_t rx_thread;
+    pthread_t io_tx_thread;
+    pthread_t mem_tx_thread;
+
+    QEMUBH *bh;
+    AddressSpace *dma_address_space;
 } CXLRemoteRootPort;
 
 // Function declarations
-void cxl_remote_init(CXLRemoteRootPort* port);
+bool cxl_remote_rp_init(CXLRemoteRootPort *port, const char *tcp_host,
+                        uint32_t tcp_port, uint32_t switch_port);
 
-PacketRequestEntry* get_request_entry(RequestQueue* queue);  // Get an available entry
-void enqueue_request(RequestQueue* queue, PacketRequestEntry* entry);  // Submit the request
-PacketRequestEntry* dequeue_request(RequestQueue* queue);  // Dequeue a processed request
-void return_request_entry(RequestQueue* queue, PacketRequestEntry* entry);  // Return a request entry to the back of available queue
+void cxl_remote_rp_cxl_io_mem_write(CXLRemoteRootPort *port, hwaddr addr,
+                                    uint16_t length_dw, uint8_t first_dw_be,
+                                    uint8_t last_dw_be, void *buffer);
+tlp_cpl_status_t cxl_remote_rp_cxl_io_mem_read(CXLRemoteRootPort *port,
+                                               hwaddr addr, uint16_t length_dw,
+                                               uint8_t first_dw_be,
+                                               uint8_t last_dw_be,
+                                               void *buffer);
 
-void mark_request_submitted(ResponseTable* table, uint16_t tag, PacketRequestEntry* entry);  // Mark request as submitted
-PacketResponseEntry* get_entry_by_tag(ResponseTable* table, uint16_t tag);  // Get entry by tag
-void clear_request_submitted(ResponseTable* table, uint16_t tag);  // Clear the request_submitted flag
+void cxl_remote_rp_cxl_io_mmio_write(CXLRemoteRootPort *port, hwaddr addr,
+                                     uint64_t data, uint8_t size);
+uint64_t cxl_remote_rp_cxl_io_mmio_read(CXLRemoteRootPort *port, hwaddr addr,
+                                        int8_t size);
 
-void mark_packet_received(ResponseTable* table, uint16_t tag);  // Mark a packet as received
-PacketResponseEntry* wait_for_received_packet(ResponseTable* table, uint16_t tag);  // Wait for a received packet
+tlp_cpl_status_t cxl_remote_rp_cxl_io_cfg_read(CXLRemoteRootPort *port,
+                                               uint16_t bdf, uint16_t offset,
+                                               uint32_t *data, uint8_t size,
+                                               bool type0);
 
-void cxl_remote_rp_cxl_io_mem_write(CXLRemoteRootPort *port, hwaddr addr, uint64_t val, uint8_t size);
-uint64_t cxl_remote_rp_cxl_io_mem_read(CXLRemoteRootPort *port, hwaddr addr, uint8_t size);
+tlp_cpl_status_t cxl_remote_rp_cxl_io_cfg_write(CXLRemoteRootPort *port,
+                                                uint16_t bdf, uint16_t offset,
+                                                uint32_t data, uint8_t size,
+                                                bool type0);
 
-void cxl_remote_rp_cxl_io_cfg_write(CXLRemoteRootPort *port, uint16_t bdf, uint32_t offset, uint32_t val, int size, bool type0);
-uint32_t cxl_remote_rp_cxl_io_cfg_read(CXLRemoteRootPort *port, uint16_t bdf, uint32_t offset, int size, bool type0);
-
-#endif // CXL_REMOTE_H
+#endif  // CXL_REMOTE_H
