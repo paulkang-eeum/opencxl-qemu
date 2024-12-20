@@ -309,6 +309,6 @@ bool send_payload(int socket_fd, uint8_t *buffer, size_t buffer_size)
         trace_cxl_socket_error_msg("Failed to transmit data over TCP socket");
         return false;
     }
-    trace_cxl_socket_error_msg("Successfully transmitted data over TCP socket");
+    trace_cxl_socket_debug_msg("Successfully transmitted data over TCP socket");
     return true;
 }

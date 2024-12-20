@@ -19,11 +19,13 @@
 #define CXL_MAX_IO_TAG 256     // 2^8
 #define CXL_MAX_MEM_TAG 65536  // 2^16
 #define MAX_PACKET_SIZE 512
+#define MAX_TLP_HEADER_SIZE (4*4)   // 4DW
+#define MAX_PACKET_BUFFER_SIZE (MAX_PACKET_SIZE + MAX_TLP_HEADER_SIZE)
 
 // Packet Request Entry for requests
 typedef struct
 {
-    uint8_t packet[MAX_PACKET_SIZE];
+    uint8_t packet[MAX_PACKET_BUFFER_SIZE];
     size_t packet_size;
     uint16_t tag;
 } PacketRequestEntry;
@@ -31,7 +33,7 @@ typedef struct
 // Packet Response Entry for responses
 typedef struct
 {
-    uint8_t packet[MAX_PACKET_SIZE];
+    uint8_t packet[MAX_PACKET_BUFFER_SIZE];
     size_t packet_size;
     bool requested;
     bool received;

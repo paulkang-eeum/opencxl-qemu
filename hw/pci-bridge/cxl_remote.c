@@ -451,7 +451,7 @@ static void process_io_resp(CXLRemoteRootPort *port,
             parse_opencxl_tlp_data_payload_length(tlp_header);
         void *data_buffer = parse_opencxl_tlp_data_pointer(tlp_header);
         assert(remaining == data_length);
-        assert(MAX_PACKET_SIZE - opencxl_tlp_header_size >= remaining);
+        assert(MAX_PACKET_BUFFER_SIZE - opencxl_tlp_header_size >= remaining);
         assert(wait_for_payload(port->socket_fd, (uint8_t *)data_buffer,
                                 data_length, data_length));
         remaining -= data_length;
@@ -511,7 +511,7 @@ static void process_io_dma_req(CXLRemoteRootPort *port,
             parse_opencxl_tlp_data_payload_length(tlp_header);
         void *data_buffer = parse_opencxl_tlp_data_pointer(tlp_header);
         assert(remaining == data_length);
-        assert(MAX_PACKET_SIZE - opencxl_tlp_header_size >= remaining);
+        assert(MAX_PACKET_BUFFER_SIZE - opencxl_tlp_header_size >= remaining);
         assert(wait_for_payload(port->socket_fd, (uint8_t *)data_buffer,
                                 data_length, data_length));
         remaining -= data_length;
